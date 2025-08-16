@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jerusalem ↔ Toronto — Dual Time</title>
+  <meta name="description" content="Beautiful dark‑mode dual clock for Jerusalem and Toronto with date, DST‑aware offsets, and optional customization via URL params. Notion‑ready." />
+  <style>
+    :root{
+      --bg-1:#0b1020;
+      --bg-2:#0b1228;
+      --card:#0f1426e6;
+      --text:#e5e7eb;
+      --muted:#a1a1aa;
+      --accent:#22d3ee;
+      --glow: 0 20px 80px rgba(34,211,238,.15);
+      --shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 0 0 1px rgba(255,255,255,.06);
+      --radius: 22px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial;
+      color:var(--text); background:
+        radial-gradient(1200px 600px at 0% -10%, rgba(34,211,238,.09), transparent 60%),
+        radial-gradient(800px 500px at 100% -20%, rgba(99,102,241,.10), transparent 50%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+      display:flex; align-items:center; justify-content:center; padding:24px;
+    }
+    .wrap{width:100%; max-width:980px}
+    .card{position:relative; border-radius:var(--radius); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.01)), var(--card); box-shadow:var(--shadow); padding:22px;}
+    header{display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px}
+    .title{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.2px; font-size:clamp(18px,2.3vw,24px)}
+    .dot{width:10px; height:10px; border-radius:999px; background:var(--accent); box-shadow:0 0 24px var(--accent)}
+    .badge{border:1px solid rgba(255,255,255,.1); background:rgba(255,255,255,.04); color:var(--muted); padding:6px 10px; border-radius:999px; font-size:12px}
+
+    .grid{display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:10px}
+    @media (max-width:720px){ .grid{grid-template-columns:1fr} }
+
+    .panel{border-radius:18px; padding:16px 18px; background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.0)); box-shadow:var(--shadow)}
+    .city{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:4px}
+    .city h2{margin:0; font-size:clamp(14px,1.8vw,16px); font-weight:700; letter-spacing:.3px}
+    .meta{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px}
+    .live{width:8px; height:8px; border-radius:999px; background:#10b981; box-shadow:0 0 16px #10b981}
+
+    .time{display:flex; align-items:baseline; gap:10px; line-height:1}
+    .clock{font-variant-numeric: tabular-nums; font-weight:800; letter-spacing:-1.3px; font-size: clamp(48px, 10vw, 96px); text-shadow: var(--glow)}
+    .ampm{color:var(--muted); font-size:14px; font-weight:700; text-transform:uppercase}
+    .date{color:var(--muted); margin-top:2px; font-size:13px}
+
+    .divider{height:1px; background:linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent); margin:14px 0}
+
+    .footer{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-top:12px}
+
+    .hint{color:var(--muted); font-size:12px}
+    .spacer{height:4px}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card" role="group" aria-labelledby="heading">
+      <header>
+        <div class="title"><span class="dot" aria-hidden="true"></span><span id="heading">Jerusalem ↔ Toronto</span></div>
+        <div class="badge" id="offsetBadge">calculating…</div>
+      </header>
+
+      <div class="grid" id="grid" aria-live="polite" aria-atomic="true">
+        <div class="panel" id="p1">
+          <div class="city">
+            <h2 id="label1">Jerusalem</h2>
+            <div class="meta"><span class="live" aria-hidden="true"></span><span id="abbr1">—</span></div>
+          </div>
+          <div class="time"><div class="clock" id="clock1">--:--</div><div class="ampm" id="ampm1"></div></div>
+          <div class="date" id="date1">—</div>
+        </div>
+        <div class="panel" id="p2">
+          <div class="city">
+            <h2 id="label2">Toronto</h2>
+            <div class="meta"><span class="live" aria-hidden="true"></span><span id="abbr2">—</span></div>
+          </div>
+          <div class="time"><div class="clock" id="clock2">--:--</div><div class="ampm" id="ampm2"></div></div>
+          <div class="date" id="date2">—</div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="footer">
+        <div class="badge" id="todayBadge">—</div>
+        <div class="hint">Tip: add <code>?accent=%23a78bfa&hour12=0</code> to tweak style and format.</div>
+      </div>
+      <div class="spacer"></div>
+    </section>
+  </main>
+
+  <script>
+    (function(){
+      const $ = sel => document.querySelector(sel);
+      const params = new URLSearchParams(location.search);
+      const safe = (s,f='')=>{ try{ s = (s??'').toString().slice(0,120); return s.replace(/[<>]/g,'') || f }catch{ return f } };
+
+      // URL params (defaults)
+      const tz1 = safe(params.get('tz1'), 'Asia/Jerusalem');
+      const tz2 = safe(params.get('tz2'), 'America/Toronto');
+      const label1 = safe(params.get('label1'), 'Jerusalem');
+      const label2 = safe(params.get('label2'), 'Toronto');
+      const accent = safe(params.get('accent'), '');
+      const hour12Param = params.get('hour12'); // '1' or '0' or null → auto based on locale
+      const showSeconds = params.get('seconds') === '1';
+
+      if(accent){ document.documentElement.style.setProperty('--accent', accent); }
+      $('#label1').textContent = label1; $('#label2').textContent = label2;
+      $('#heading').textContent = `${label1} ↔ ${label2}`;
+
+      // Formatters
+      const baseOpts = { hour:'2-digit', minute:'2-digit', timeZoneName:'short' };
+      const secOpts  = { hour:'2-digit', minute:'2-digit', second:'2-digit', timeZoneName:'short' };
+
+      function fmt(tz, withSeconds=false){
+        const o = withSeconds ? secOpts : baseOpts;
+        const use12 = hour12Param==null ? undefined : hour12Param==='1';
+        return new Intl.DateTimeFormat(undefined, { ...o, hour12: use12, timeZone: tz });
+      }
+
+      function fmtDate(tz){
+        return new Intl.DateTimeFormat(undefined, { weekday:'short', year:'numeric', month:'short', day:'numeric', timeZone: tz });
+      }
+
+      function fmtDayLong(){
+        return new Intl.DateTimeFormat(undefined, { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+      }
+
+      // Extract parts for manual AM/PM chip and clock text
+      function partsNow(tz){
+        const f = new Intl.DateTimeFormat('en-GB', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone: tz });
+        const map = {}; f.formatToParts(new Date()).forEach(p=> map[p.type]=p.value);
+        return map; // {hour, minute, second}
+      }
+
+      // Compute offset minutes of tz from UTC at a given date
+      function tzOffsetMinutes(tz, date=new Date()){
+        const dtf = new Intl.DateTimeFormat('en-US', { timeZone: tz, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false });
+        const d = {}; dtf.formatToParts(date).forEach(p=> d[p.type]=p.value);
+        const asUTC = Date.UTC(+d.year, +d.month-1, +d.day, +d.hour, +d.minute, +d.second);
+        return Math.round((asUTC - date.getTime())/60000); // minutes east of UTC
+      }
+
+      function offsetBadge(){
+        const now = new Date();
+        const o1 = tzOffsetMinutes(tz1, now); const o2 = tzOffsetMinutes(tz2, now);
+        const h1 = o1/60, h2 = o2/60; const diffMin = o1-o2; const sign = diffMin>0?'+': diffMin<0?'-':'±';
+        const diffTxt = `${sign}${Math.abs(Math.round(diffMin/60))}h${Math.abs(diffMin%60)?Math.abs(diffMin%60)+'m':''}`;
+        const a = new Intl.DateTimeFormat(undefined, { timeZone: tz1, timeZoneName:'short' }).format(now).split(', ').pop();
+        const b = new Intl.DateTimeFormat(undefined, { timeZone: tz2, timeZoneName:'short' }).format(now).split(', ').pop();
+        $('#offsetBadge').textContent = `${label1} ${a} vs ${label2} ${b} • Δ ${diffTxt}`;
+      }
+
+      function update(){
+        const now = new Date();
+        // City 1
+        const p1 = partsNow(tz1);
+        const time1 = `${p1.hour}:${p1.minute}${showSeconds? ':'+p1.second:''}`;
+        $('#clock1').textContent = time1;
+        const ampm1 = new Intl.DateTimeFormat('en-US', { hour:'numeric', hour12:true, timeZone: tz1 }).format(now).endsWith('AM')? 'AM':'PM';
+        $('#ampm1').textContent = (hour12Param==='0') ? '' : ampm1;
+        $('#date1').textContent = fmtDate(tz1).format(now);
+        $('#abbr1').textContent = new Intl.DateTimeFormat(undefined, { timeZone: tz1, timeZoneName:'short' }).format(now).split(', ').pop();
+
+        // City 2
+        const p2 = partsNow(tz2);
+        const time2 = `${p2.hour}:${p2.minute}${showSeconds? ':'+p2.second:''}`;
+        $('#clock2').textContent = time2;
+        const ampm2 = new Intl.DateTimeFormat('en-US', { hour:'numeric', hour12:true, timeZone: tz2 }).format(now).endsWith('AM')? 'AM':'PM';
+        $('#ampm2').textContent = (hour12Param==='0') ? '' : ampm2;
+        $('#date2').textContent = fmtDate(tz2).format(now);
+        $('#abbr2').textContent = new Intl.DateTimeFormat(undefined, { timeZone: tz2, timeZoneName:'short' }).format(now).split(', ').pop();
+
+        // Today badge (viewer locale)
+        $('#todayBadge').textContent = fmtDayLong().format(now);
+
+        // Offset badge (DST-aware)
+        offsetBadge();
+      }
+
+      // Kick things off
+      update();
+      setInterval(update, showSeconds ? 1000 : 60000);
+    })();
+  </script>
+</body>
+</html>
